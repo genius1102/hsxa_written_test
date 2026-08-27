@@ -1,0 +1,177 @@
+{
+  "version": 1,
+  "_comment": "指纹识别规则（与代码解耦，修改后重启服务即可生效，无需重新编译）。priority 大者先匹配，banner 正则首个命中即返回；命名分组 product/version/os 命中后覆盖静态字段。banner 未命中时按 ports 端口提示降级识别，置信度上限 0.5。字节级匹配在 JSON 中写作 \\\\xHH（解码后为 Go 正则语法 \\xHH）。",
+  "rules": [
+    {
+      "id": "ssh-openssh",
+      "_comment": "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3 / SSH-1.99-OpenSSH_4.3",
+      "priority": 1000,
+      "protocol": "SSH",
+      "product": "OpenSSH",
+      "confidence": 0.95,
+      "ports": [22],
+      "regex": "^SSH-[0-9.]+-(?P<product>OpenSSH)[_-](?P<version>[0-9][0-9A-Za-z._+\\-]*)(?:\\s+(?P<os>[A-Za-z][A-Za-z0-9._]*))?"
+    },
+    {
+      "id": "ssh-generic",
+      "_comment": "其他 SSH 实现，如 dropbear/libssh",
+      "priority": 990,
+      "protocol": "SSH",
+      "confidence": 0.85,
+      "ports": [22],
+      "regex": "^SSH-[0-9.]+-(?P<product>[A-Za-z][0-9A-Za-z._-]*?)[_-](?P<version>[0-9][0-9A-Za-z._+\\-]*)(?:\\s+(?P<os>[A-Za-z][A-Za-z0-9._]*))?"
+    },
+    {
+      "id": "mysql-mariadb",
+      "_comment": "MySQL 握手包带 MariaDB 后缀（5.5.5-10.11.2-MariaDB）",
+      "priority": 960,
+      "protocol": "MySQL",
+      "product": "MariaDB",
+      "confidence": 0.9,
+      "ports": [3306],
+      "regex": "^\\x4a\\x00\\x00\\x00\\x0a(?P<version>[^\\x00]*MariaDB)"
+    },
+    {
+      "id": "mysql",
+      "_comment": "MySQL 握手包：0x4A 后跟协议版本 0x0A，随后为以 NUL 结尾的版本串",
+      "priority": 950,
+      "protocol": "MySQL",
+      "product": "MySQL",
+      "confidence": 0.9,
+      "ports": [3306],
+      "regex": "^\\x4a\\x00\\x00\\x00\\x0a(?P<version>[^\\x00]+)"
+    },
+    {
+      "id": "tls-1.0",
+      "_comment": "TLS ClientHello 记录头 0x16 0x03 0x01",
+      "priority": 900,
+      "protocol": "TLS",
+      "version": "1.0",
+      "confidence": 0.9,
+      "ports": [9999],
+      "regex": "^\\x16\\x03\\x01"
+    },
+    {
+      "id": "tls-1.1",
+      "priority": 900,
+      "protocol": "TLS",
+      "version": "1.1",
+      "confidence": 0.9,
+      "regex": "^\\x16\\x03\\x02"
+    },
+    {
+      "id": "tls-1.2",
+      "priority": 900,
+      "protocol": "TLS",
+      "version": "1.2",
+      "confidence": 0.9,
+      "regex": "^\\x16\\x03\\x03"
+    },
+    {
+      "id": "tls-1.3",
+      "priority": 900,
+      "protocol": "TLS",
+      "version": "1.3",
+      "confidence": 0.9,
+      "regex": "^\\x16\\x03\\x04"
+    },
+    {
+      "id": "redis",
+      "_comment": "Redis 单行响应：+PONG / -ERR ... / -NOAUTH ... 等",
+      "priority": 850,
+      "protocol": "Redis",
+      "product": "Redis",
+      "confidence": 0.7,
+      "ports": [6379],
+      "regex": "^[+-](?:PONG|ERR|NOAUTH|DENIED|LOADING|MISCONF|WRONGTYPE|BUSY)"
+    },
+    {
+      "id": "ftp-proftpd",
+      "_comment": "220 ProFTPD 1.3.7 Server (ProFTPD)",
+      "priority": 800,
+      "protocol": "FTP",
+      "product": "ProFTPD",
+      "confidence": 0.9,
+      "ports": [21],
+      "regex": "^220\\s+(?P<product>ProFTPD)\\s+(?P<version>[0-9][0-9A-Za-z._+\\-]*)"
+    },
+    {
+      "id": "ftp-vsftpd",
+      "_comment": "220 (vsFTPd 3.0.5)",
+      "priority": 800,
+      "protocol": "FTP",
+      "product": "vsFTPd",
+      "confidence": 0.9,
+      "ports": [21],
+      "regex": "^220\\s*\\((?P<product>vsFTPd)\\s+(?P<version>[0-9][0-9A-Za-z._+\\-]*)\\)"
+    },
+    {
+      "id": "ftp-pureftpd",
+      "_comment": "220 Welcome to Pure-FTPd（banner 无版本号，version 留空）",
+      "priority": 800,
+      "protocol": "FTP",
+      "product": "Pure-FTPd",
+      "confidence": 0.8,
+      "ports": [21],
+      "regex": "^220\\s.*?(?P<product>Pure-FTPd)"
+    },
+    {
+      "id": "http-nginx",
+      "_comment": "Server: nginx/1.24.0 [(Ubuntu)]",
+      "priority": 700,
+      "protocol": "HTTP",
+      "product": "nginx",
+      "confidence": 0.9,
+      "ports": [80, 443, 8080, 8443, 8888],
+      "regex": "(?im)^Server:\\s*(?P<product>nginx)/(?P<version>[0-9][0-9A-Za-z._+\\-]*)(?:\\s*\\((?P<os>[^)\\r\\n]+)\\))?"
+    },
+    {
+      "id": "http-apache",
+      "_comment": "Server: Apache/2.4.57 [(Ubuntu)]",
+      "priority": 700,
+      "protocol": "HTTP",
+      "product": "Apache",
+      "confidence": 0.9,
+      "ports": [80, 443, 8080, 8443, 8888],
+      "regex": "(?im)^Server:\\s*(?P<product>Apache)/(?P<version>[0-9][0-9A-Za-z._+\\-]*)(?:\\s*\\((?P<os>[^)\\r\\n]+)\\))?"
+    },
+    {
+      "id": "http-jetty",
+      "_comment": "Server: Jetty/9.4.51 或 Jetty(9.4.51.v...)",
+      "priority": 700,
+      "protocol": "HTTP",
+      "product": "Jetty",
+      "confidence": 0.85,
+      "ports": [80, 443, 8080, 8443, 8888],
+      "regex": "(?im)^Server:\\s*(?P<product>Jetty)[/(](?P<version>[0-9][0-9A-Za-z._+\\-]*)"
+    },
+    {
+      "id": "http-iis",
+      "_comment": "Server: Microsoft-IIS/10.0",
+      "priority": 700,
+      "protocol": "HTTP",
+      "product": "Microsoft-IIS",
+      "confidence": 0.9,
+      "ports": [80, 443, 8080, 8443, 8888],
+      "regex": "(?im)^Server:\\s*(?P<product>Microsoft-IIS)/(?P<version>[0-9][0-9A-Za-z._+\\-]*)"
+    },
+    {
+      "id": "http-server-generic",
+      "_comment": "其他 Web 服务器，如 Apache-Coyote/1.1 (Tomcat)、openresty、Caddy 等",
+      "priority": 690,
+      "protocol": "HTTP",
+      "confidence": 0.8,
+      "ports": [80, 443, 8080, 8443, 8888],
+      "regex": "(?im)^Server:\\s*(?P<product>[^\\s/]+)/(?P<version>[0-9][0-9A-Za-z._+\\-]*)(?:\\s*\\((?P<os>[^)\\r\\n]+)\\))?"
+    },
+    {
+      "id": "http-generic",
+      "_comment": "HTTP 响应但无 Server 头",
+      "priority": 100,
+      "protocol": "HTTP",
+      "confidence": 0.6,
+      "ports": [80, 443, 8080, 8443, 8888],
+      "regex": "^HTTP/"
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+# banner-fingerprint 一键启动编排
+# 生产级要素：
+#   - 启动依赖真实健康检测：client 等待 server healthcheck 通过后才运行
+#   - 容器间访问收敛：client 通过内部网络 DNS 名 http://server:8080 访问，不依赖宿主机端口
+#   - 运行权限收紧：非 root 用户（镜像内 USER 10001）、cap_drop: ALL、read_only 根文件系统、no-new-privileges
+#   - 规则解耦：./rules 只读挂载进容器，改规则无需重建镜像
+#   - 日志限制：json-file + 大小/份数上限，防止日志撑爆磁盘
+#   - server restart: unless-stopped 自愈；client 为一次性批处理任务，restart: "no"
+name: banner-fingerprint
+
+services:
+  server:
+    build:
+      context: .
+      target: server
+      args:
+        COMPONENT: server
+    image: bannerf/server:latest
+    container_name: bannerf-server
+    restart: unless-stopped
+    environment:
+      LISTEN_ADDR: ":8080"
+      RULES_PATH: /etc/bannerf/rules.json
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      # 仅 server 对宿主机暴露端口，client 走容器内部网络
+      - "${SERVER_PORT:-8080}:8080"
+    volumes:
+      # 识别规则与代码解耦：修改宿主规则文件后重启容器即生效，无需重新构建镜像
+      - ./rules:/etc/bannerf/rules:ro
+    healthcheck:
+      # 使用镜像内自带的 busybox wget，不依赖外部工具
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 3s
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
+
+  client:
+    build:
+      context: .
+      target: client
+      args:
+        COMPONENT: client
+    image: bannerf/client:latest
+    container_name: bannerf-client
+    restart: "no"
+    environment:
+      # 走 compose 内部网络的服务名解析，不写死 IP，也不依赖宿主机端口映射
+      SERVER_URL: http://server:8080
+      INPUT_FILE: /data/input.json
+    volumes:
+      # 换成自己的数据文件后重跑：docker compose run --rm client
+      - ./samples:/data:ro
+    depends_on:
+      server:
+        condition: service_healthy
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge

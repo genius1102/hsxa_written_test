@@ -1,0 +1,9 @@
+.git
+.md
+.env
+samples
+README.md
+.gitignore
+.dockerignore
+*.exe
+bin/
